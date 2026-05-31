@@ -1,0 +1,54 @@
+name: Sync upstream
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-upstream-main
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream https://github.com/CookSleep/gpt_image_playground.git || git remote set-url upstream https://github.com/CookSleep/gpt_image_playground.git
+          git fetch upstream main:refs/remotes/upstream/main --no-tags
+
+      - name: Merge upstream into main
+        id: merge
+        run: |
+          set -euo pipefail
+          git checkout main
+          before="$(git rev-parse HEAD)"
+          git merge --no-edit upstream/main
+          after="$(git rev-parse HEAD)"
+
+          if [ "$before" = "$after" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "Fork main is already up to date with upstream/main."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "Merged upstream/main into fork main: $before -> $after"
+          fi
+
+      - name: Push synced main
+        if: steps.merge.outputs.changed == 'true'
+        run: git push origin main
