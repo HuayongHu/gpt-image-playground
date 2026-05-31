@@ -52,3 +52,15 @@ jobs:
       - name: Push synced main
         if: steps.merge.outputs.changed == 'true'
         run: git push origin main
+
+      - name: Trigger Vercel production deploy
+        if: steps.merge.outputs.changed == 'true'
+        env:
+          VERCEL_DEPLOY_HOOK: ${{ secrets.VERCEL_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK" ]; then
+            echo "VERCEL_DEPLOY_HOOK is not set; relying on the Vercel Git integration."
+            exit 0
+          fi
+
+          curl --fail --show-error --silent --request POST "$VERCEL_DEPLOY_HOOK"
